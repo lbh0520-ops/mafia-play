@@ -21,7 +21,6 @@
     </style>
 </head>
 <body class="bg-slate-50 text-slate-900 min-h-screen p-2 md:p-8">
-
     <div id="app" class="max-w-3xl mx-auto bg-white rounded-3xl shadow-xl overflow-hidden border border-slate-100 min-h-[600px] flex flex-col">
         <!-- Header -->
         <div class="bg-slate-900 p-6 text-white flex justify-between items-center shrink-0">
@@ -35,19 +34,16 @@
                 <i data-lucide="rotate-ccw" size="20"></i>
             </button>
         </div>
-
         <!-- Main Content Area -->
         <div id="content" class="p-4 md:p-6 flex-grow overflow-y-auto">
             <!-- 동적으로 콘텐츠가 주입됩니다 -->
         </div>
-
         <!-- Footer Log -->
         <div id="footer-log" class="bg-slate-900 p-4 max-h-32 overflow-y-auto hidden">
             <h4 class="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-2">Game Logs</h4>
             <div id="log-container" class="space-y-1"></div>
         </div>
     </div>
-
     <script>
         // --- 게임 상태 변수 ---
         let gameState = 'setup'; // setup, naming, role_reveal, night, day_result, game_over
@@ -60,7 +56,7 @@
         let isRoleVisible = false;
         let round = 1;
         let logs = [];
-        let mafiaTarget = null;
+        let mafiaTargets = []; // 마피아 목표 대상 배열 (최대 2명)
         let doctorTarget = null;
         let policeTarget = null;
         let policeResult = null;
@@ -73,7 +69,6 @@
         };
 
         // --- 핵심 로직 함수 ---
-
         function render() {
             const content = document.getElementById('content');
             const subtitle = document.getElementById('header-subtitle');
@@ -90,7 +85,6 @@
             }
 
             let html = '';
-
             switch (gameState) {
                 case 'setup':
                     html = renderSetup();
@@ -111,7 +105,6 @@
                     html = renderGameOver();
                     break;
             }
-
             content.innerHTML = `<div class="animate-fade-in">${html}</div>`;
             lucide.createIcons();
         }
@@ -126,7 +119,6 @@
         }
 
         // --- 화면별 렌더러 ---
-
         function renderSetup() {
             return `
                 <div class="space-y-6">
@@ -202,7 +194,6 @@
                 '의사': 'text-green-400',
                 '시민': 'text-slate-400'
             };
-
             return `
                 <div class="text-center py-6 md:py-10 space-y-6">
                     <div class="space-y-2">
@@ -247,11 +238,24 @@
                     <div class="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
                         ${hasMafia ? `
                             <div class="p-4 bg-red-50 rounded-2xl border border-red-100 shadow-sm">
-                                <p class="text-red-700 font-bold mb-3 flex items-center gap-2"><i data-lucide="skull" size="18"></i> 마피아의 표적</p>
+                                <p class="text-red-700 font-bold mb-3 flex items-center gap-2">
+                                    <i data-lucide="skull" size="18"></i> 마피아의 표적 (최대 2명 선택: ${mafiaTargets.length}/2)
+                                </p>
                                 <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                                    ${alivePlayers.map(p => `
-                                        <button onclick="selectMafiaTarget(${p.id})" class="p-2 rounded-xl border transition-all text-xs font-medium ${mafiaTarget === p.id ? 'bg-red-600 text-white border-red-600 scale-95' : 'bg-white border-red-200 text-red-900 hover:bg-red-100'}">${p.name}</button>
-                                    `).join('')}
+                                    ${alivePlayers.map(p => {
+                                        const targetIndex = mafiaTargets.indexOf(p.id);
+                                        const isSelected = targetIndex > -1;
+                                        return `
+                                            <button onclick="selectMafiaTarget(${p.id})" 
+                                                class="p-2 rounded-xl border transition-all text-xs font-medium ${
+                                                    isSelected 
+                                                    ? 'bg-red-600 text-white border-red-600 scale-95 font-bold' 
+                                                    : 'bg-white border-red-200 text-red-900 hover:bg-red-100'
+                                                }">
+                                                ${p.name} ${isSelected ? `(표적 ${targetIndex + 1})` : ''}
+                                            </button>
+                                        `;
+                                    }).join('')}
                                 </div>
                             </div>
                         ` : ''}
@@ -260,7 +264,7 @@
                                 <p class="text-green-700 font-bold mb-3 flex items-center gap-2"><i data-lucide="shield" size="18"></i> 의사의 치료</p>
                                 <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
                                     ${alivePlayers.map(p => `
-                                        <button onclick="selectDoctorTarget(${p.id})" class="p-2 rounded-xl border transition-all text-xs font-medium ${doctorTarget === p.id ? 'bg-green-600 text-white border-green-600 scale-95' : 'bg-white border-green-200 text-green-900 hover:bg-green-100'}">${p.name}</button>
+                                        <button onclick="selectDoctorTarget(${p.id})" class="p-2 rounded-xl border transition-all text-xs font-medium ${doctorTarget === p.id ? 'bg-green-600 text-white border-green-600 scale-95 font-bold' : 'bg-white border-green-200 text-green-900 hover:bg-green-100'}">${p.name}</button>
                                     `).join('')}
                                 </div>
                             </div>
@@ -270,7 +274,7 @@
                                 <p class="text-blue-700 font-bold mb-3 flex items-center gap-2"><i data-lucide="search" size="18"></i> 경찰의 조사</p>
                                 <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
                                     ${alivePlayers.map(p => `
-                                        <button onclick="selectPoliceTarget(${p.id})" class="p-2 rounded-xl border transition-all text-xs font-medium ${policeTarget === p.id ? 'bg-blue-600 text-white border-blue-600 scale-95' : 'bg-white border-blue-200 text-blue-900 hover:bg-blue-100'}">${p.name}</button>
+                                        <button onclick="selectPoliceTarget(${p.id})" class="p-2 rounded-xl border transition-all text-xs font-medium ${policeTarget === p.id ? 'bg-blue-600 text-white border-blue-600 scale-95 font-bold' : 'bg-white border-blue-200 text-blue-900 hover:bg-blue-100'}">${p.name}</button>
                                     `).join('')}
                                 </div>
                                 ${policeResult ? `<div class="mt-3 p-2 bg-white rounded-lg text-center font-bold text-blue-800 border-2 border-blue-400 animate-pulse text-sm">결과: ${policeResult}</div>` : ''}
@@ -347,10 +351,8 @@
         }
 
         // --- 이벤트 핸들러 및 헬퍼 ---
-
         function updatePlayerCount(val) {
             playerCount = parseInt(val);
-            // 마피아 수는 대략 1/4 수준으로 자동 조정 권장 (사용자가 직접 변경 가능)
             mafiaCount = Math.max(1, Math.floor(playerCount / 4));
             render();
         }
@@ -376,11 +378,9 @@
             for (let i = 0; i < policeCount; i++) roles.push('경찰');
             for (let i = 0; i < doctorCount; i++) roles.push('의사');
             while (roles.length < playerCount) roles.push('시민');
-
-            // 셔플
+            
             roles = roles.sort(() => Math.random() - 0.5);
             players.forEach((p, i) => p.role = roles[i]);
-
             gameState = 'role_reveal';
             revealIndex = 0;
             isRoleVisible = false;
@@ -403,8 +403,23 @@
             }
         }
 
-        function selectMafiaTarget(id) { mafiaTarget = id; render(); }
+        // 마피아 표적 다중 선택 핸들러 (최대 2명)
+        function selectMafiaTarget(id) { 
+            const index = mafiaTargets.indexOf(id);
+            if (index > -1) {
+                mafiaTargets.splice(index, 1);
+            } else {
+                if (mafiaTargets.length < 2) {
+                    mafiaTargets.push(id);
+                } else {
+                    alert("마피아는 한 밤에 최대 2명까지만 지목할 수 있습니다.");
+                }
+            }
+            render(); 
+        }
+
         function selectDoctorTarget(id) { doctorTarget = id; render(); }
+
         function selectPoliceTarget(id) { 
             policeTarget = id; 
             policeResult = players.find(p => p.id === id).role === '마피아' ? '마피아가 맞습니다!' : '마피아가 아닙니다.';
@@ -412,17 +427,26 @@
         }
 
         function processNight() {
-            let killedId = null;
+            let killedNames = [];
             let message = "";
 
-            if (mafiaTarget !== null) {
-                if (mafiaTarget === doctorTarget) {
-                    message = "의사가 마피아의 공격을 막아냈습니다! 어젯밤에는 아무도 죽지 않았습니다.";
+            if (mafiaTargets.length > 0) {
+                mafiaTargets.forEach(targetId => {
+                    if (targetId === doctorTarget) {
+                        // 의사의 치유 대상인 경우 생존
+                    } else {
+                        const victim = players.find(p => p.id === targetId);
+                        if (victim && victim.isAlive) {
+                            victim.isAlive = false;
+                            killedNames.push(`[${victim.name}]`);
+                        }
+                    }
+                });
+
+                if (killedNames.length > 0) {
+                    message = `어젯밤, 마피아의 공격으로 ${killedNames.join(', ')}님이 사망하셨습니다.`;
                 } else {
-                    killedId = mafiaTarget;
-                    const victim = players.find(p => p.id === killedId);
-                    victim.isAlive = false;
-                    message = `어젯밤, 마피아의 공격으로 [${victim.name}]님이 사망하셨습니다.`;
+                    message = "의사가 마피아의 공격을 성공적으로 막아냈습니다! 어젯밤에는 아무도 죽지 않았습니다.";
                 }
             } else {
                 message = "어젯밤에는 평화로운 밤이었습니다. 아무도 죽지 않았습니다.";
@@ -434,8 +458,8 @@
                 gameState = 'day_result';
             }
 
-            // 초기화
-            mafiaTarget = null;
+            // 라운드 종료 초기화
+            mafiaTargets = [];
             doctorTarget = null;
             policeTarget = null;
             policeResult = null;
@@ -480,7 +504,7 @@
             round = 1;
             logs = [];
             winner = null;
-            mafiaTarget = null;
+            mafiaTargets = [];
             doctorTarget = null;
             policeTarget = null;
             policeResult = null;
