@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>학급 마피아 게임 관리자</title>
+    <title>학급 마피아 게임 사회자</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Lucide Icons CDN -->
@@ -74,7 +74,7 @@
             const subtitle = document.getElementById('header-subtitle');
             const footer = document.getElementById('footer-log');
             
-            subtitle.innerText = `라운드 ${round} \vert{} 총 ${playerCount}명 참여 중`;
+            subtitle.innerText = `라운드 ${round} | 총 ${playerCount}명 참여 중`;
             
             // 로그 표시 여부
             if (gameState === 'setup' || gameState === 'naming' || logs.length === 0) {
@@ -113,7 +113,7 @@
             const container = document.getElementById('log-container');
             container.innerHTML = logs.map((log, i) => `
                 <p class="text-[11px] text-slate-300 flex items-start gap-2">
-                    <span class="text-slate-600 font-bold">[${logs.length - i}]</span>${log}
+                    <span class="text-slate-600 font-bold">[${logs.length - i}]</span> ${log}
                 </p>
             `).join('');
         }
@@ -150,4 +150,392 @@
                         <div class="p-4 bg-red-50 rounded-2xl border border-red-100">
                             <p class="text-red-700 font-bold mb-2 flex items-center gap-1"><i data-lucide="skull" size="16"></i> 마피아</p>
                             <input type="number" min="1" max="${Math.floor(playerCount/2)}" value="${mafiaCount}" 
-                                onchange="mafiaCount=parseInt(this.value); render();
+                                onchange="mafiaCount=parseInt(this.value); render();" 
+                                class="w-full p-2 rounded-lg border border-red-200" />
+                        </div>
+                        <div class="p-4 bg-blue-50 rounded-2xl border border-blue-100">
+                            <p class="text-blue-700 font-bold mb-2 flex items-center gap-1"><i data-lucide="search" size="16"></i> 경찰</p>
+                            <input type="number" min="0" max="3" value="${policeCount}" 
+                                onchange="policeCount=parseInt(this.value); render();"
+                                class="w-full p-2 rounded-lg border border-blue-200" />
+                        </div>
+                        <div class="p-4 bg-green-50 rounded-2xl border border-green-100">
+                            <p class="text-green-700 font-bold mb-2 flex items-center gap-1"><i data-lucide="shield" size="16"></i> 의사</p>
+                            <input type="number" min="0" max="3" value="${doctorCount}" 
+                                onchange="doctorCount=parseInt(this.value); render();"
+                                class="w-full p-2 rounded-lg border border-green-200" />
+                        </div>
+                    </div>
+                    <button onclick="startNaming()" class="w-full py-4 bg-slate-900 text-white rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-slate-800 transition-all shadow-lg">
+                        <i data-lucide="play" size="20"></i> 게임 설정 시작
+                    </button>
+                </div>
+            `;
+        }
+
+        function renderNaming() {
+            return `
+                <div class="space-y-6">
+                    <h2 class="text-xl font-bold mb-2">학생들의 이름을 입력하세요</h2>
+                    <div class="grid grid-cols-2 md:grid-cols-3 gap-2 max-h-[50vh] overflow-y-auto pr-2 p-1">
+                        ${players.map((p, i) => `
+                            <div class="relative group">
+                                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] text-slate-300 font-bold">${i + 1}</span>
+                                <input value="${p.name}" oninput="handleNameChange(${i}, this.value)"
+                                    class="w-full pl-8 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-slate-900 outline-none text-sm"
+                                    placeholder="학생 ${i + 1}" />
+                            </div>
+                        `).join('')}
+                    </div>
+                    <button onclick="assignRoles()" class="w-full py-4 bg-slate-900 text-white rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-slate-800 transition-all">
+                        <i data-lucide="check-circle-2" size="20"></i> 역할 배정 및 게임 시작
+                    </button>
+                </div>
+            `;
+        }
+
+        function renderRoleReveal() {
+            const p = players[revealIndex];
+            const iconMap = {
+                '마피아': 'skull',
+                '경찰': 'search',
+                '의사': 'shield',
+                '시민': 'users'
+            };
+            const colorMap = {
+                '마피아': 'text-red-500',
+                '경찰': 'text-blue-400',
+                '의사': 'text-green-400',
+                '시민': 'text-slate-400'
+            };
+            return `
+                <div class="text-center py-6 md:py-10 space-y-6">
+                    <div class="space-y-2">
+                        <p class="text-slate-500 text-sm">차례대로 본인의 역할을 확인하세요 (${revealIndex + 1}/${players.length})</p>
+                        <h2 class="text-3xl font-black text-slate-900">${p.name}님</h2>
+                    </div>
+                    <div class="relative flex justify-center">
+                        <div class="w-64 h-80 rounded-3xl border-4 border-dashed border-slate-200 flex flex-col items-center justify-center p-6 transition-all ${isRoleVisible ? 'bg-slate-900 border-none scale-105 shadow-2xl' : 'bg-white'}">
+                            ${isRoleVisible ? `
+                                <div class="text-white space-y-4 animate-fade-in text-center">
+                                    <i data-lucide="${iconMap[p.role]}" class="mx-auto ${colorMap[p.role]}" style="width: 80px; height: 80px;"></i>
+                                    <p class="text-2xl font-bold tracking-widest uppercase">${p.role}</p>
+                                </div>
+                            ` : `
+                                <button onclick="toggleRoleVisible(true)" class="flex flex-col items-center gap-4 text-slate-400 hover:text-slate-600 transition-colors">
+                                    <i data-lucide="eye" style="width: 64px; height: 64px;"></i>
+                                    <span class="font-bold text-lg underline underline-offset-4 cursor-pointer">클릭해서 확인</span>
+                                </button>
+                            `}
+                        </div>
+                    </div>
+                    ${isRoleVisible ? `
+                        <button onclick="nextReveal()" class="w-full py-4 bg-slate-900 text-white rounded-2xl font-bold hover:bg-slate-800 shadow-lg">
+                            확인 완료 (기기를 전달하세요)
+                        </button>
+                    ` : ''}
+                </div>
+            `;
+        }
+
+        function renderNight() {
+            const alivePlayers = players.filter(p => p.isAlive);
+            const hasMafia = players.some(p => p.role === '마피아' && p.isAlive);
+            const hasDoctor = players.some(p => p.role === '의사' && p.isAlive);
+            const hasPolice = players.some(p => p.role === '경찰' && p.isAlive);
+
+            return `
+                <div class="space-y-6">
+                    <div class="flex items-center gap-2 text-indigo-600 font-bold text-xl mb-2">
+                        <i data-lucide="moon" fill="currentColor"></i> 밤이 되었습니다. (사회자 진행 모드)
+                    </div>
+                    <div class="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
+                        ${hasMafia ? `
+                            <div class="p-4 bg-red-50 rounded-2xl border border-red-100 shadow-sm">
+                                <p class="text-red-700 font-bold mb-3 flex items-center gap-2">
+                                    <i data-lucide="skull" size="18"></i> 마피아의 표적 (최대 2명 선택: ${mafiaTargets.length}/2)
+                                </p>
+                                <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                                    ${alivePlayers.map(p => {
+                                        const targetIndex = mafiaTargets.indexOf(p.id);
+                                        const isSelected = targetIndex > -1;
+                                        return `
+                                            <button onclick="selectMafiaTarget(${p.id})" 
+                                                class="p-2 rounded-xl border transition-all text-xs font-medium flex items-center justify-between ${
+                                                    isSelected 
+                                                    ? 'bg-red-600 text-white border-red-600 scale-95 font-bold' 
+                                                    : 'bg-white border-red-200 text-red-900 hover:bg-red-100'
+                                                }">
+                                                <span>${p.name} ${isSelected ? `(표적 ${targetIndex + 1})` : ''}</span>
+                                                ${getRoleBadge(p.role)}
+                                            </button>
+                                        `;
+                                    }).join('')}
+                                </div>
+                            </div>
+                        ` : ''}
+                        ${hasDoctor ? `
+                            <div class="p-4 bg-green-50 rounded-2xl border border-green-100 shadow-sm">
+                                <p class="text-green-700 font-bold mb-3 flex items-center gap-2"><i data-lucide="shield" size="18"></i> 의사의 치료</p>
+                                <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                                    ${alivePlayers.map(p => `
+                                        <button onclick="selectDoctorTarget(${p.id})" class="p-2 rounded-xl border transition-all text-xs font-medium flex items-center justify-between ${doctorTarget === p.id ? 'bg-green-600 text-white border-green-600 scale-95 font-bold' : 'bg-white border-green-200 text-green-900 hover:bg-green-100'}">
+                                            <span>${p.name}</span>
+                                            ${getRoleBadge(p.role)}
+                                        </button>
+                                    `).join('')}
+                                </div>
+                            </div>
+                        ` : ''}
+                        ${hasPolice ? `
+                            <div class="p-4 bg-blue-50 rounded-2xl border border-blue-100 shadow-sm">
+                                <p class="text-blue-700 font-bold mb-3 flex items-center gap-2"><i data-lucide="search" size="18"></i> 경찰의 조사</p>
+                                <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                                    ${alivePlayers.map(p => `
+                                        <button onclick="selectPoliceTarget(${p.id})" class="p-2 rounded-xl border transition-all text-xs font-medium flex items-center justify-between ${policeTarget === p.id ? 'bg-blue-600 text-white border-blue-600 scale-95 font-bold' : 'bg-white border-blue-200 text-blue-900 hover:bg-blue-100'}">
+                                            <span>${p.name}</span>
+                                            ${getRoleBadge(p.role)}
+                                        </button>
+                                    `).join('')}
+                                </div>
+                                ${policeResult ? `<div class="mt-3 p-2 bg-white rounded-lg text-center font-bold text-blue-800 border-2 border-blue-400 animate-pulse text-sm">결과: ${policeResult}</div>` : ''}
+                            </div>
+                        ` : ''}
+                    </div>
+                    <button onclick="processNight()" class="w-full py-4 bg-slate-900 text-white rounded-2xl font-bold hover:bg-slate-800 mt-2 shadow-lg">밤 행동 완료 및 결과 확인</button>
+                </div>
+            `;
+        }
+
+        function renderDayResult() {
+            const aliveOnes = players.filter(p => p.isAlive);
+            return `
+                <div class="space-y-6">
+                    <div class="flex items-center gap-2 text-orange-500 font-bold text-xl mb-2">
+                        <i data-lucide="sun" fill="currentColor"></i> 해가 떴습니다.
+                    </div>
+                    <div class="p-6 bg-orange-50 rounded-3xl border border-orange-200 text-center shadow-inner">
+                        <p class="text-lg md:text-xl font-bold text-orange-900 whitespace-pre-line leading-relaxed">${logs[0]}</p>
+                    </div>
+                    <div class="space-y-4">
+                        <h3 class="font-bold text-slate-700 border-b pb-2 flex items-center gap-2"><i data-lucide="alert-circle" size="18"></i> 생존자 투표 및 처형 선택</h3>
+                        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 max-h-[30vh] overflow-y-auto p-1">
+                            ${aliveOnes.map(p => `
+                                <button onclick="handleVote(${p.id})" class="p-2 bg-white border border-slate-200 rounded-xl hover:bg-red-600 hover:text-white transition-all text-xs font-bold shadow-sm flex items-center justify-between">
+                                    <span>${p.name}</span>${getRoleBadge(p.role)}
+                                </button>
+                            `).join('')}
+                        </div>
+                        <button onclick="handleVote(null)" class="w-full p-4 bg-slate-100 border border-slate-300 rounded-2xl hover:bg-slate-200 transition-all text-sm font-bold shadow-sm">이번 라운드는 아무도 처형하지 않음 (투표 무효)</button>
+                    </div>
+                    <div class="mt-4 bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                        <p class="text-[10px] font-black text-slate-400 mb-3 uppercase tracking-widest">실시간 생존 현황 (사회자용 직업 표시)</p>
+                        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                            ${players.map(p => `
+                                <div class="flex items-center justify-between p-2 rounded-xl border ${p.isAlive ? 'bg-white border-slate-200' : 'bg-slate-200 opacity-50 border-transparent grayscale'}">
+                                    <div class="flex items-center gap-2 truncate">
+                                        <div class="w-2 h-2 rounded-full shrink-0 ${p.isAlive ? 'bg-green-500 shadow-[0_0_5px_rgba(34,197,94,0.5)]' : 'bg-red-500'}"></div>
+                                        <span class="text-xs font-bold truncate">${p.name}</span>
+                                    </div>
+                                    ${getRoleBadge(p.role)}
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderGameOver() {
+            return `
+                <div class="text-center py-6 md:py-10 space-y-8 animate-bounce-in">
+                    <div class="relative inline-block">
+                        <div class="w-32 h-32 rounded-full flex items-center justify-center mx-auto mb-4 shadow-xl ${winner === '마피아' ? 'bg-red-600' : 'bg-blue-600'}">
+                            <i data-lucide="${winner === '마피아' ? 'skull' : 'shield'}" class="text-white" style="width: 64px; height: 64px;"></i>
+                        </div>
+                        <div class="absolute -top-2 -right-2 bg-yellow-400 text-slate-900 px-3 py-1 rounded-full font-black text-sm rotate-12 border-2 border-white shadow-md uppercase">WINNER</div>
+                    </div>
+                    <div>
+                        <h2 class="text-5xl font-black mb-2 tracking-tighter ${winner === '마피아' ? 'text-red-600' : 'text-blue-600'}">${winner}팀 승리!</h2>
+                        <p class="text-slate-500 font-medium">축하합니다! 게임이 종료되었습니다.</p>
+                    </div>
+                    <div class="bg-slate-50 rounded-3xl p-6 text-left border border-slate-200 shadow-inner">
+                        <h3 class="font-bold mb-4 flex items-center gap-2 text-slate-700 border-b border-slate-200 pb-2">최종 역할 리스트</h3>
+                        <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                            ${players.map(p => `
+                                <div class="flex flex-col p-2 bg-white rounded-xl border border-slate-100 shadow-sm">
+                                    <span class="text-[10px] font-bold mb-1 ${p.isAlive ? 'text-green-600' : 'text-slate-400 line-through'}">${p.isAlive ? 'ALIVE' : 'DEAD'}</span>
+                                    <span class="text-sm font-black text-slate-800 truncate">${p.name}</span>
+                                    <span class="text-[11px] font-bold mt-1 ${p.role === '마피아' ? 'text-red-500' : p.role === '경찰' ? 'text-blue-500' : p.role === '의사' ? 'text-green-500' : 'text-slate-500'}">${p.role}</span>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                    <button onclick="resetGame()" class="w-full py-4 bg-slate-900 text-white rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-slate-800 transition-all shadow-xl">다시 시작하기</button>
+                </div>
+            `;
+        }
+
+        // --- 이벤트 핸들러 및 헬퍼 ---
+        function updatePlayerCount(val) {
+            playerCount = parseInt(val);
+            mafiaCount = Math.max(1, Math.floor(playerCount / 4));
+            render();
+        }
+
+        function startNaming() {
+            players = Array.from({ length: playerCount }, (_, i) => ({
+                id: i,
+                name: `학생 ${i + 1}`,
+                role: '시민',
+                isAlive: true,
+            }));
+            gameState = 'naming';
+            render();
+        }
+
+        function handleNameChange(index, value) {
+            players[index].name = value;
+        }
+
+        function assignRoles() {
+            let roles = [];
+            for (let i = 0; i < mafiaCount; i++) roles.push('마피아');
+            for (let i = 0; i < policeCount; i++) roles.push('경찰');
+            for (let i = 0; i < doctorCount; i++) roles.push('의사');
+            while (roles.length < playerCount) roles.push('시민');
+            
+            roles = roles.sort(() => Math.random() - 0.5);
+            players.forEach((p, i) => p.role = roles[i]);
+            gameState = 'role_reveal';
+            revealIndex = 0;
+            isRoleVisible = false;
+            render();
+        }
+
+        function toggleRoleVisible(val) {
+            isRoleVisible = val;
+            render();
+        }
+
+        function nextReveal() {
+            if (revealIndex < players.length - 1) {
+                revealIndex++;
+                isRoleVisible = false;
+                render();
+            } else {
+                gameState = 'night';
+                render();
+            }
+        }
+
+        // 마피아 표적 다중 선택 핸들러 (최대 2명)
+        function selectMafiaTarget(id) { 
+            const index = mafiaTargets.indexOf(id);
+            if (index > -1) {
+                mafiaTargets.splice(index, 1);
+            } else {
+                if (mafiaTargets.length < 2) {
+                    mafiaTargets.push(id);
+                } else {
+                    alert("마피아는 한 밤에 최대 2명까지만 지목할 수 있습니다.");
+                }
+            }
+            render(); 
+        }
+
+        function selectDoctorTarget(id) { doctorTarget = id; render(); }
+
+        function selectPoliceTarget(id) { 
+            policeTarget = id; 
+            policeResult = players.find(p => p.id === id).role === '마피아' ? '마피아가 맞습니다!' : '마피아가 아닙니다.';
+            render(); 
+        }
+
+        function processNight() {
+            let killedNames = [];
+            let message = "";
+
+            if (mafiaTargets.length > 0) {
+                mafiaTargets.forEach(targetId => {
+                    if (targetId === doctorTarget) {
+                        // 의사의 치유 대상인 경우 생존
+                    } else {
+                        const victim = players.find(p => p.id === targetId);
+                        if (victim && victim.isAlive) {
+                            victim.isAlive = false;
+                            killedNames.push(`[${victim.name}]`);
+                        }
+                    }
+                });
+
+                if (killedNames.length > 0) {
+                    message = `어젯밤, 마피아의 공격으로 ${killedNames.join(', ')}님이 사망하셨습니다.`;
+                } else {
+                    message = "의사가 마피아의 공격을 성공적으로 막아냈습니다! 어젯밤에는 아무도 죽지 않았습니다.";
+                }
+            } else {
+                message = "어젯밤에는 평화로운 밤이었습니다. 아무도 죽지 않았습니다.";
+            }
+
+            logs.unshift(message);
+            
+            if (!checkVictory()) {
+                gameState = 'day_result';
+            }
+
+            // 라운드 종료 초기화
+            mafiaTargets = [];
+            doctorTarget = null;
+            policeTarget = null;
+            policeResult = null;
+            render();
+        }
+
+        function handleVote(id) {
+            if (id === null) {
+                logs.unshift("투표 결과, 아무도 처형되지 않았습니다.");
+            } else {
+                const victim = players.find(p => p.id === id);
+                victim.isAlive = false;
+                logs.unshift(`투표로 인해 [${victim.name}]님이 처형되었습니다. 역할은 [${victim.role}]이었습니다.`);
+            }
+            
+            if (!checkVictory()) {
+                round++;
+                gameState = 'night';
+            }
+            render();
+        }
+
+        function checkVictory() {
+            const aliveMafia = players.filter(p => p.isAlive && p.role === '마피아').length;
+            const aliveCitizens = players.filter(p => p.isAlive && p.role !== '마피아').length;
+
+            if (aliveMafia === 0) {
+                winner = '시민';
+                gameState = 'game_over';
+                return true;
+            }
+            if (aliveMafia >= aliveCitizens) {
+                winner = '마피아';
+                gameState = 'game_over';
+                return true;
+            }
+            return false;
+        }
+
+        function resetGame() {
+            gameState = 'setup';
+            round = 1;
+            logs = [];
+            winner = null;
+            mafiaTargets = [];
+            doctorTarget = null;
+            policeTarget = null;
+            policeResult = null;
+            render();
+        }
+    </script>
+</body>
+</html>
